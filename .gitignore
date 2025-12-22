@@ -2,7 +2,9 @@
 *.exe
 *.out
 
-# 忽略编译中间文件
+# 忽略Word文档
+*.docx
+*.doc
 *.o
 *.obj
 
