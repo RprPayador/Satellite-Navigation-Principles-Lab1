@@ -352,44 +352,6 @@ int main()
                         best_ephem = &ephem;
                     }
                 }
-                if(sat.PRN == "C36"&&t==41400)
-                {
-                    cout << "\n===========================\n";
-                    cout << " C36 调试信息 t = " << t << " 秒\n";
-                    cout << "===========================\n";
-
-                    if(best_ephem)
-                    {
-                        cout << "使用的星历 TOE = " << best_ephem->TOE
-                            << "   (与 t 的差 min_time_diff = " << min_time_diff << ")\n\n";
-
-                        cout << "星历参数：\n";
-                        cout << "  sqrt(A)     = " << best_ephem->sqrt_A << "\n";
-                        cout << "  e           = " << best_ephem->e << "\n";
-                        cout << "  i0          = " << best_ephem->i_0 << "\n";
-                        cout << "  idot        = " << best_ephem->i_dot << "\n";
-                        cout << "  Omega0      = " << best_ephem->Omega << "\n";
-                        cout << "  Omega_dot   = " << best_ephem->Omega_dot << "\n";
-                        cout << "  omega       = " << best_ephem->omega << "\n";
-                        cout << "  Cuc, Cus    = " << best_ephem->C_uc << " , " << best_ephem->C_us << "\n";
-                        cout << "  Cic, Cis    = " << best_ephem->C_ic << " , " << best_ephem->C_is << "\n";
-                        cout << "  Crc, Crs    = " << best_ephem->C_rc << " , " << best_ephem->C_rs << "\n";
-                        cout << "  Delta_n     = " << best_ephem->Delta_n << "\n";
-                        cout << "  M0          = " << best_ephem->M_0 << "\n";
-
-                        // 输出计算得到的坐标和中间变量
-                        Point3D pos = best_ephem->calc_coordinate(t);
-
-                        cout << "\n计算后的坐标：\n";
-                        cout << "  X = " << pos.x << "\n";
-                        cout << "  Y = " << pos.y << "\n";
-                        cout << "  Z = " << pos.z << "\n";
-
-
-                        cout << "===========================\n\n";
-                    }
-                    return 0;
-                }
 
                 
                 // 计算卫星位置

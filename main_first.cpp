@@ -90,30 +90,6 @@ class Ephemery{
 
 
 
-    // 将toc转换为GPS周内秒（从周日0时开始的秒数）
-    double toc_to_gps_seconds() const {
-        // 计算该日是星期几 (需要用蔡勒公式或简单近似)
-        // 简化处理：假设toc的hour/minute/second直接给出了当天的时间
-        // 我们需要知道该日期是周几
-        int y = toc.year;
-        int m = toc.month;
-        int d = toc.day;
-        
-        // 蔡勒公式计算星期几 (0=周日, 1-6=周一到周六)
-        if (m < 3) {
-            m += 12;
-            y -= 1;
-        }
-        int k = y % 100;
-        int j = y / 100;
-        int dow = (d + (13 * (m + 1)) / 5 + k + k / 4 + j / 4 - 2 * j) % 7;
-        dow = ((dow + 6) % 7);  // 转换为0=周日
-        
-        // 计算周内秒
-        double seconds_in_day = toc.hour * 3600.0 + toc.minute * 60.0 + toc.second;
-        return dow * 86400.0 + seconds_in_day;
-    }
-
     //计算t时刻卫星位置
     Point3D calc_coordinate(double t){
         //处理跨周影响
@@ -289,28 +265,13 @@ int main()
             for(double t = 0; t <= 86400; t += 300.0){  // 每5分钟计算一次
                 Ephemery* best_ephem = nullptr;
                 double min_time_diff = TMP_MAX;  // 使用最大值
-                double min_toc_toe_diff = TMP_MAX;  // toc与toe的最小差值（用于处理toe相同的情况）
                 
                 // 遍历所有星历，找到时间最接近的
-                // 如果多个星历的toe与t的差值相同，选择toc与toe差值最小的星历
                 for(auto& ephem : sat.Ephemerys){
                     // 计算星历参考时间TOE与当前时间t的差值
                     double time_diff = fabs(ephem.TOE - t);
-                    
-                    // 计算toc与toe的差值（用于判断数据质量）
-                    double toc_seconds = ephem.toc_to_gps_seconds();
-                    double toc_toe_diff = fabs(toc_seconds - ephem.TOE);
-                    // 处理跨周的情况
-                    if(toc_toe_diff > 302400) toc_toe_diff = 604800 - toc_toe_diff;
-                    
                     if(time_diff < min_time_diff){
-                        // 找到更接近的星历
                         min_time_diff = time_diff;
-                        min_toc_toe_diff = toc_toe_diff;
-                        best_ephem = &ephem;
-                    } else if(time_diff == min_time_diff && toc_toe_diff < min_toc_toe_diff){
-                        // toe与t的差值相同，但toc与toe更接近，选择这个星历
-                        min_toc_toe_diff = toc_toe_diff;
                         best_ephem = &ephem;
                     }
                 }
