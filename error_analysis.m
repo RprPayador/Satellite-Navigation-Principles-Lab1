@@ -4,7 +4,7 @@
 clc; clear; close all;
 
 %% 1. 设置参数
-target_prn = 'C01';  % 要分析的卫星
+target_prn = 'G09';  % 要分析的卫星
 sp3_file = 'WUM0MGXFIN_20193350000_01D_15M_ORB.SP3';
 brd_file = 'coordinates.txt';
 
@@ -20,13 +20,13 @@ fgetl(fid);
 
 brd_t = [];
 brd_pos = []; % [x, y, z]
+brd_t_toe = [];  % t-toe时间差
 
 while ~feof(fid)
     line = fgetl(fid);
     if isempty(line), continue; end
     
-    % 解析行: PRN t X Y Z ...
-    % 示例: C01 0.00000000 -32319483.79 ...
+    % 解析行: PRN t X Y Z t_minus_toe
     C = textscan(line, '%s %f %f %f %f %f');
     if isempty(C{1}), continue; end
     
@@ -36,9 +36,11 @@ while ~feof(fid)
         x = C{3};
         y = C{4};
         z = C{5};
+        t_toe = C{6};  % |t - TOE|
         
         brd_t = [brd_t; t];
         brd_pos = [brd_pos; x, y, z];
+        brd_t_toe = [brd_t_toe; t_toe];
     end
 end
 fclose(fid);
@@ -90,60 +92,64 @@ fclose(fid);
 fprintf('精密星历: 找到 %d 个 %s 的数据点\n', length(sp3_t), target_prn);
 
 %% 4. 生成对比数据
-% 策略：遍历SP3的每个时间点，在广播星历中找完全匹配的时间点
-% (因为SP3点少且精确，广播星历点多)
-
-error_data = []; % [t, dx, dy, dz, d3d]
-valid_sp3_t = [];
-
+error_data = [];  % [t, dx, dy, dz, d3d, t_toe]
 for i = 1:length(sp3_t)
     t_check = sp3_t(i);
-    
-    % 在广播星历数据中查找匹配的时间 (允许微小误差，例如0.1秒)
     idx = find(abs(brd_t - t_check) < 0.1);
-    
     if ~isempty(idx)
-        % 找到了
-        idx = idx(1); % 取第一个匹配的
-        
-        pos_brd = brd_pos(idx, :);
-        pos_sp3 = sp3_pos(i, :);
-        
-        diff = pos_brd - pos_sp3;
-        dist = norm(diff);
-        
-        error_data = [error_data; t_check, diff, dist];
+        idx = idx(1);
+        diff = brd_pos(idx, :) - sp3_pos(i, :);
+        error_data = [error_data; t_check, diff, norm(diff), brd_t_toe(idx)];
     end
 end
 
+% 把t-toe四舍五入到最近的15分钟(900秒)倍数
+error_data(:, 6) = round(error_data(:, 6) / 900) * 900;
+
 fprintf('共生成 %d 个对比点\n', size(error_data, 1));
 
-%% 5. 绘图
+%% 5. 绑图
 if isempty(error_data)
-    warning('没有找到重叠的时间点，无法绘图。请检查时间范围是否匹配。');
+    warning('没有找到重叠的时间点');
 else
     figure('Name', ['Error Analysis: ' target_prn], 'Color', 'w');
-    
     t_hours = error_data(:, 1) / 3600;
+    t_toe_sec = error_data(:, 6);  % |t - TOE|
     
-    % 子图1: XYZ 误差
+    % 用t-toe来判断TOE点：t-toe < 60秒的认为是接近TOE的点
+    toe_idx = find(t_toe_sec < 60);
+    non_toe_idx = find(t_toe_sec >= 60);
+    
+    % 子图1: XYZ误差
     subplot(2, 1, 1);
-    plot(t_hours, error_data(:, 2), 'r-o', 'DisplayName', 'dX'); hold on;
-    plot(t_hours, error_data(:, 3), 'g-o', 'DisplayName', 'dY');
-    plot(t_hours, error_data(:, 4), 'b-o', 'DisplayName', 'dZ');
-    grid on;
-    legend('show');
+    plot(t_hours, error_data(:, 2), 'r-', 'HandleVisibility', 'off'); hold on;
+    plot(t_hours, error_data(:, 3), 'g-', 'HandleVisibility', 'off');
+    plot(t_hours, error_data(:, 4), 'b-', 'HandleVisibility', 'off');
+    % 空心点
+    plot(t_hours(non_toe_idx), error_data(non_toe_idx, 2), 'ro', 'MarkerSize', 5, 'DisplayName', 'dX');
+    plot(t_hours(non_toe_idx), error_data(non_toe_idx, 3), 'go', 'MarkerSize', 5, 'DisplayName', 'dY');
+    plot(t_hours(non_toe_idx), error_data(non_toe_idx, 4), 'bo', 'MarkerSize', 5, 'DisplayName', 'dZ');
+    % 实心点(TOE)
+    if ~isempty(toe_idx)
+        plot(t_hours(toe_idx), error_data(toe_idx, 2), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r', 'HandleVisibility', 'off');
+        plot(t_hours(toe_idx), error_data(toe_idx, 3), 'go', 'MarkerSize', 8, 'MarkerFaceColor', 'g', 'HandleVisibility', 'off');
+        plot(t_hours(toe_idx), error_data(toe_idx, 4), 'bo', 'MarkerSize', 8, 'MarkerFaceColor', 'b', 'HandleVisibility', 'off');
+        plot(NaN, NaN, 'ko', 'MarkerSize', 8, 'MarkerFaceColor', 'k', 'DisplayName', 't≈TOE');
+    end
+    grid on; legend('show', 'Location', 'best');
     title([target_prn ' XYZ Axis Error']);
-    xlabel('Time (hours)');
-    ylabel('Error (m)');
+    xlabel('Time (hours)'); ylabel('Error (m)');
     
-    % 子图2: 3D 距离误差
+    % 子图2: 3D误差
     subplot(2, 1, 2);
-    plot(t_hours, error_data(:, 5), 'k-s', 'LineWidth', 1.5);
-    grid on;
+    plot(t_hours, error_data(:, 5), 'k-', 'HandleVisibility', 'off'); hold on;
+    plot(t_hours(non_toe_idx), error_data(non_toe_idx, 5), 'ks', 'MarkerSize', 5, 'DisplayName', '3D Error');
+    if ~isempty(toe_idx)
+        plot(t_hours(toe_idx), error_data(toe_idx, 5), 'ks', 'MarkerSize', 8, 'MarkerFaceColor', 'm', 'DisplayName', 't≈TOE');
+    end
+    grid on; legend('show', 'Location', 'best');
     title([target_prn ' 3D Position Error']);
-    xlabel('Time (hours)');
-    ylabel('Error (m)');
+    xlabel('Time (hours)'); ylabel('Error (m)');
     
     % 输出一些统计
     max_err = max(error_data(:, 5));
@@ -154,6 +160,30 @@ else
     fprintf('  MAX Error: %.3f m\n', max_err);
     fprintf('  MEAN Error: %.3f m\n', mean_err);
     fprintf('  RMS Error: %.3f m\n', rms_err);
+    
+    % 新增: t-toe vs 误差散点图
+    figure('Name', ['t-TOE vs Error: ' target_prn], 'Color', 'w');
+    t_toe_hours = error_data(:, 6) / 3600;  % 转换为小时
+    scatter(t_toe_hours, error_data(:, 5), 50, 'b', 'filled', 'MarkerFaceAlpha', 0.6);
+    grid on;
+    xlabel('|t - TOE| (hours)');
+    ylabel('3D Error (m)');
+    title([target_prn ' Error vs Time from TOE']);
+    
+    % 按t-toe分组计算平均误差
+    hold on;
+    t_toe_sec = error_data(:, 6);
+    unique_t_toe = unique(t_toe_sec);
+    avg_errors = zeros(length(unique_t_toe), 1);
+    for k = 1:length(unique_t_toe)
+        idx = t_toe_sec == unique_t_toe(k);
+        avg_errors(k) = mean(error_data(idx, 5));
+    end
+    
+    % 排序后画折线
+    [sorted_t, sort_idx] = sort(unique_t_toe);
+    plot(sorted_t/3600, avg_errors(sort_idx), 'r-o', 'LineWidth', 2, 'MarkerFaceColor', 'r');
+    legend('Data', 'Mean', 'Location', 'best');
 end
 
 % 辅助函数
