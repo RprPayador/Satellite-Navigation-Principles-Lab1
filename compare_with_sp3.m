@@ -167,9 +167,15 @@ for sat_idx = 1:length(target_sats)
     comp_brd_z = brd_z(valid_brd_idx);
 
     % 插值SP3数据到相同时间点
-    comp_sp3_x = interp1(sp3_t, sp3_x, comp_time, 'linear');
-    comp_sp3_y = interp1(sp3_t, sp3_y, comp_time, 'linear');
-    comp_sp3_z = interp1(sp3_t, sp3_z, comp_time, 'linear');
+    % 注意：必须先对SP3数据按时间排序，否则interp1会出错
+    [sp3_t_sorted, sort_idx] = sort(sp3_t);
+    sp3_x_sorted = sp3_x(sort_idx);
+    sp3_y_sorted = sp3_y(sort_idx);
+    sp3_z_sorted = sp3_z(sort_idx);
+    
+    comp_sp3_x = interp1(sp3_t_sorted, sp3_x_sorted, comp_time, 'linear');
+    comp_sp3_y = interp1(sp3_t_sorted, sp3_y_sorted, comp_time, 'linear');
+    comp_sp3_z = interp1(sp3_t_sorted, sp3_z_sorted, comp_time, 'linear');
 
     % 计算误差
     error_x = comp_brd_x - comp_sp3_x;
@@ -317,10 +323,15 @@ if length(common_sats) > 1
         comp_brd_y = brd_y(valid_idx);
         comp_brd_z = brd_z(valid_idx);
 
-        % 插值
-        comp_sp3_x = interp1(sp3_t, sp3_x, comp_time, 'linear');
-        comp_sp3_y = interp1(sp3_t, sp3_y, comp_time, 'linear');
-        comp_sp3_z = interp1(sp3_t, sp3_z, comp_time, 'linear');
+        % 插值（先排序）
+        [sp3_t_sorted, sort_idx] = sort(sp3_t);
+        sp3_x_sorted = sp3_x(sort_idx);
+        sp3_y_sorted = sp3_y(sort_idx);
+        sp3_z_sorted = sp3_z(sort_idx);
+        
+        comp_sp3_x = interp1(sp3_t_sorted, sp3_x_sorted, comp_time, 'linear');
+        comp_sp3_y = interp1(sp3_t_sorted, sp3_y_sorted, comp_time, 'linear');
+        comp_sp3_z = interp1(sp3_t_sorted, sp3_z_sorted, comp_time, 'linear');
 
         % 计算误差
         error_x = comp_brd_x - comp_sp3_x;

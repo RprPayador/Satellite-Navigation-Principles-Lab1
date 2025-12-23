@@ -140,7 +140,7 @@ class Ephemery{
 
         //step3 迭代计算偏近点角
         double E = M;
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 50; i++)
             E = M + e * sin(E); 
 
         //step4 计算真近点角
@@ -190,19 +190,20 @@ class Ephemery{
             double Z_GK = y_orbit * sin(i);
             
             // Step 3: 地球自转修正 (旋转角度为 omega_e * tk)
-            // 注意：GEO卫星还需要绕X轴旋转-5度
+            // 公式: [X; Y; Z] = Rz(omega_e * tk) * Rx(-5°) * [Xgk; Ygk; Zgk]
             double phi = omega_e * tk;
             double angle_x = -5.0 * M_PI / 180.0;  // -5度转弧度
             
-            // 先绕Z轴旋转phi
-            double X_temp = X_GK * cos(phi) + Y_GK * sin(phi);
-            double Y_temp = -X_GK * sin(phi) + Y_GK * cos(phi);
-            double Z_temp = Z_GK;
+            // 1. 先绕X轴旋转-5度 (Rx)
+            double X_temp = X_GK;
+            double Y_temp = Y_GK * cos(angle_x) + Z_GK * sin(angle_x);
+            double Z_temp = -Y_GK * sin(angle_x) + Z_GK * cos(angle_x);
             
-            // 再绕X轴旋转-5度
-            X = X_temp;
-            Y = Y_temp * cos(angle_x) + Z_temp * sin(angle_x);
-            Z = -Y_temp * sin(angle_x) + Z_temp * cos(angle_x);
+            // 2. 再绕Z轴旋转phi (Rz)
+            // 注意：Rz矩阵形式为 [[cos sin 0], [-sin cos 0], [0 0 1]]
+            X = X_temp * cos(phi) + Y_temp * sin(phi);
+            Y = -X_temp * sin(phi) + Y_temp * cos(phi);
+            Z = Z_temp;
         } else {
             // 情况A: GPS卫星及BDS MEO/IGSO卫星
             double L = Omega + (Omega_dot - omega_e) * tk - omega_e * TOE;
@@ -318,7 +319,7 @@ int main()
     if(!outfile.is_open()) cout<<"无法创建或打开输出文件"<<endl;
     //表头
     outfile<<left<<setw(10)<<"PRN"<<right<<setw(20)<<"t(GNSS TIME)/s"
-    <<setw(20)<<"X/m"<<setw(20)<<"Y/m"<<setw(20)<<"Z/m"<<setw(20)<<"toe/s"<<"\n";
+    <<setw(20)<<"X/m"<<setw(20)<<"Y/m"<<setw(20)<<"Z/m"<<setw(20)<<"|t - TOE|/s"<<"\n";
 
     for(auto& sat : Satellites){
         if(sat.PRN[0] == 'G'||sat.PRN[0]=='C'){
